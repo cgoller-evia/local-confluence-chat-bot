@@ -1,0 +1,30 @@
+{
+  "name": "confluence-chat-bot",
+  "version": "1.0.0",
+  "description": "Experimental locally running chat bot for confluence spaces",
+  "keywords": [
+    "ai",
+    "local"
+  ],
+  "license": "ISC",
+  "author": "Christoph Goller",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@langchain/community": "^0.3.39",
+    "@langchain/core": "^0.3.43",
+    "@langchain/langgraph": "^0.2.63",
+    "@langchain/ollama": "^0.2.0",
+    "@langchain/qdrant": "^0.1.2",
+    "dotenv": "^16.4.7",
+    "html-to-text": "^9.0.5",
+    "langchain": "^0.3.20",
+    "pdf-parse": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0"
+  }
+}
