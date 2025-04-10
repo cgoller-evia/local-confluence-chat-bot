@@ -56,12 +56,12 @@ async function buildIndex(loader: ConfluencePagesLoader | DirectoryLoader) {
 }
 
 async function startChat() {
-    const template = `You are a chat bot for answering questions. 
-    Use the following pieces of retrieved context to answer the question. 
-    If you don't know the answer, just say that you don't know. 
-        Question: {question} 
-        Context: {context} 
-        Answer:
+    const template = `Answer the users QUESTION using the DOCUMENT text above.
+        Keep your answer ground in the facts of the DOCUMENT.
+        If the DOCUMENT does not contain the facts to answer the QUESTION, just say that you don't know.
+        QUESTION: {question}
+        DOCUMENT: {context}
+        ANSWER:
     `;
     const promptTemplate = ChatPromptTemplate.fromTemplate(template);
     
@@ -76,12 +76,12 @@ async function startChat() {
     });
 
     const retrieve = async (state: typeof InputStateAnnotation.State) => {
-        const retrievedDocs = await vectorStore.similaritySearch(state.question, 8)
+        const retrievedDocs = await vectorStore.similaritySearch(state.question, 4)
         return { context: retrievedDocs };
     };
 
     const generate = async (state: typeof StateAnnotation.State) => {
-        const docsContent = state.context.map(doc => doc.pageContent).join("\n");
+        const docsContent = state.context.map(doc => `${doc.metadata.title}\n ${doc.pageContent}`).join("\n");
         const messages = await promptTemplate.invoke({ question: state.question, context: docsContent });
         const response = await llm.stream(messages);
         return { answer: response };
@@ -112,8 +112,8 @@ async function startChat() {
             process.exit(0);
         }
         try {
-            const stream = await graph.invoke({ question: input});
-            for await (const chunk of stream.answer) {
+            const response = await graph.invoke({ question: input});
+            for await (const chunk of response.answer) {
                 process.stdout.write(chunk.content as string);            
             }            
             console.log("\n---------------------------------------------------------");
