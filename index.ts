@@ -21,12 +21,13 @@ const embeddings = new OllamaEmbeddings({
 
 const vectorStore = await QdrantVectorStore.fromExistingCollection(embeddings, {
     url: process.env.QDRANT_URL,
-    collectionName: "confluence-chat-bot",
+    collectionName: process.env.COLLECTION_NAME,
 });
 
 const llm = new ChatOllama({
     model: process.env.OLLAMA_CHAT_MODEL,
     temperature: 0,
+    baseUrl: process.env.OLLAMA_URL,
 });
 
 const confluenceLoader = new ConfluencePagesLoader({
@@ -50,17 +51,31 @@ async function buildIndex(loader: ConfluencePagesLoader | DirectoryLoader) {
     });
     console.log("Splitting documents...");
     const splitDocs = await textSplitter.splitDocuments(docs);
-    console.log("Adding documents to vector store...");
-    await vectorStore.addDocuments(splitDocs);
-    console.log("Index built successfully.\n");
+    
+    console.log("Adding documents to vector store in batches...");
+    
+    const batchSize = 150;
+    const totalBatches = Math.ceil(splitDocs.length / batchSize);
+    
+    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+      const start = batchIndex * batchSize;
+      const batch = splitDocs.slice(start, start + batchSize);
+      
+      console.log(`Adding batch ${batchIndex + 1} of ${totalBatches} (documents ${start} to ${start + batch.length - 1})...`);
+      await vectorStore.addDocuments(batch);
+    }
+    
+    console.log("Index built successfully.");
 }
 
 async function startChat() {
-    const template = `Answer the users QUESTION using the DOCUMENT text above.
-        Keep your answer ground in the facts of the DOCUMENT.
-        If the DOCUMENT does not contain the facts to answer the QUESTION, just say that you don't know.
+    const template = `You are a Chat Bot assistant for providing factual ANSWER to a QUESTION based on DOCUMENTS.
+        Below is the provided list of DOCUMENTS. Each document has the format Title: "...", Url: "...", Content: "...";
+        Keep your ANSWER ground in the facts of the DOCUMENTS.
+        If the DOCUMENTS does not contain the facts to ANSWER the QUESTION, just say that you don't know.
+        When giving your final ANSWER always provide the titles and urls from the documents you based your ANSWER of.
         QUESTION: {question}
-        DOCUMENT: {context}
+        DOCUMENTS: {context}
         ANSWER:
     `;
     const promptTemplate = ChatPromptTemplate.fromTemplate(template);
@@ -81,7 +96,7 @@ async function startChat() {
     };
 
     const generate = async (state: typeof StateAnnotation.State) => {
-        const docsContent = state.context.map(doc => `${doc.metadata.title}\n ${doc.pageContent}`).join("\n");
+        const docsContent = state.context.map(doc => `Title: "${doc.metadata.title}, Url: "${doc.metadata.url}", Content: "${doc.pageContent}"`).join(';\n');
         const messages = await promptTemplate.invoke({ question: state.question, context: docsContent });
         const response = await llm.stream(messages);
         return { answer: response };
